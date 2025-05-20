@@ -1,6 +1,6 @@
 An AI-powered Retrieval-Augmented Generation system for RHEL Security Technical Implementation Guide (STIG) assistance, with primary focus on RHEL 9 and secondary support for RHEL 8.
 
-🚀 Overview
+Overview
 The RHEL STIG RAG system combines advanced language models with retrieval-based techniques to provide intelligent guidance for Red Hat Enterprise Linux security compliance. By leveraging vector search and AI, the system can:
 
 Answer natural language questions about RHEL security requirements
@@ -9,7 +9,7 @@ Prioritize RHEL 9 guidance while supporting RHEL 8
 Generate detailed compliance recommendations
 Cross-reference related security controls
 
-✨ Key Features
+Key Features
 Core Capabilities
 
 Natural Language Interface: Ask security compliance questions in plain English
@@ -32,7 +32,7 @@ Podman Deployment: Secure, rootless container deployment
 Docker Deployment: Traditional container support
 Native Installation: Direct system installation
 
-🏗️ Architecture
+Architecture
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   STIG Sources  │───▶│ Vector Database │───▶│  Query Engine   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
@@ -41,7 +41,7 @@ Native Installation: Direct system installation
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │     Client      │◀───│      API        │◀───│  Language Model │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-🔧 Installation Options
+Installation Options
 Choose the installation method that best fits your environment:
 Option 1: Quick Start (Development)
 bash# Clone the repository
@@ -83,7 +83,7 @@ cd rhel-stig-rag
 
 # Deploy with Docker Compose
 docker-compose up -d
-🚀 Quick Start Guide
+Quick Start Guide
 1. Load STIG Data
 bash# Load sample RHEL 9 data (primary)
 python3 app/stig_client.py load stig_data/sample_rhel9_stig.json
@@ -125,7 +125,7 @@ Podman Deployment Guide: Podman-specific deployment guide
 API Reference: REST API documentation
 User Guide: Usage instructions and examples
 
-💡 Usage Examples
+Usage Examples
 RHEL 9 Package Verification
 Query: "How do I verify GPG signatures in RHEL 9?"
 
@@ -177,7 +177,7 @@ RHEL requires SELinux to be enabled in enforcing mode. Here's how to properly co
 This implements RHEL-09-230010 and helps satisfy multiple other controls.
 
 Note: In RHEL 8, the control ID is RHEL-08-020020 with similar requirements.
-🛠️ Advanced Configuration
+Advanced Configuration
 Custom Language Models
 The system can be configured to use different language models:
 bash# In .env file
