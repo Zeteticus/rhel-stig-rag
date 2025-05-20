@@ -1,0 +1,58 @@
+# Application Settings
+APP_NAME={{ stig_rag_app_name | default('RHEL STIG RAG Assistant') }}
+APP_VERSION={{ stig_rag_version }}
+APP_HOST={{ stig_rag_host }}
+APP_PORT={{ stig_rag_port }}
+
+# RHEL Version Priority
+DEFAULT_RHEL_VERSION={{ stig_rag_default_rhel_version }}
+SUPPORTED_RHEL_VERSIONS={{ stig_rag_supported_rhel_versions | join(',') }}
+
+# Vector Store Settings
+VECTORSTORE_PATH={{ stig_rag_vector_db_dir }}
+EMBEDDING_MODEL={{ stig_rag_embedding_model }}
+CHUNK_SIZE={{ stig_rag_chunk_size }}
+CHUNK_OVERLAP={{ stig_rag_chunk_overlap }}
+
+# Language Model Settings
+LLM_PROVIDER={{ stig_rag_llm_provider }}
+LLM_MODEL={{ stig_rag_llm_model }}
+LLM_TEMPERATURE={{ stig_rag_llm_temperature }}
+LLM_MAX_LENGTH={{ stig_rag_llm_max_length }}
+
+{% if stig_rag_openai_api_key is defined %}
+# OpenAI Configuration
+OPENAI_API_KEY={{ stig_rag_openai_api_key }}
+OPENAI_MODEL={{ stig_rag_openai_model | default('gpt-3.5-turbo') }}
+{% endif %}
+
+{% if stig_rag_anthropic_api_key is defined %}
+# Anthropic Configuration
+ANTHROPIC_API_KEY={{ stig_rag_anthropic_api_key }}
+ANTHROPIC_MODEL={{ stig_rag_anthropic_model | default('claude-3-sonnet-20240229') }}
+{% endif %}
+
+# Data Directories
+STIG_DATA_DIR={{ stig_rag_data_dir }}
+LOG_DIR={{ stig_rag_log_dir }}
+
+# Search Settings
+DEFAULT_SEARCH_RESULTS={{ stig_rag_default_search_results }}
+MAX_SEARCH_RESULTS={{ stig_rag_max_search_results }}
+PREFER_RHEL9_RESULTS={{ stig_rag_prefer_rhel9_results | lower }}
+
+# Logging
+LOG_LEVEL={{ stig_rag_log_level }}
+LOG_FILE={{ stig_rag_log_dir }}/stig_rag.log
+
+# Security Settings
+ALLOWED_FILE_EXTENSIONS={{ stig_rag_allowed_file_extensions | join(',') }}
+MAX_FILE_SIZE_MB={{ stig_rag_max_file_size_mb }}
+
+# Performance Settings
+ENABLE_CACHING={{ stig_rag_enable_caching | lower }}
+CACHE_TTL_SECONDS={{ stig_rag_cache_ttl_seconds }}
+
+# UI Settings
+ENABLE_CORS={{ stig_rag_enable_cors | lower }}
+ALLOWED_ORIGINS={{ stig_rag_allowed_origins }}

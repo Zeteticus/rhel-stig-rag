@@ -1,0 +1,111 @@
+---
+# Default variables for RHEL STIG RAG deployment
+
+# Application Configuration
+stig_rag_version: "1.0.0"
+stig_rag_user: "stigrag"
+stig_rag_group: "stigrag"
+stig_rag_home: "/opt/stig-rag"
+stig_rag_repo_url: "https://github.com/your-org/rhel-stig-rag.git"
+stig_rag_branch: "main"
+
+# Service Configuration
+stig_rag_host: "0.0.0.0"
+stig_rag_port: 8000
+stig_rag_workers: "{{ ansible_processor_vcpus | default(2) }}"
+
+# RHEL Version Priority
+stig_rag_default_rhel_version: 9
+stig_rag_supported_rhel_versions: [8, 9]
+
+# Directories
+stig_rag_data_dir: "{{ stig_rag_home }}/stig_data"
+stig_rag_vector_db_dir: "{{ stig_rag_home }}/stig_chroma_db"
+stig_rag_log_dir: "/var/log/stig-rag"
+stig_rag_config_dir: "/etc/stig-rag"
+
+# Python Configuration
+stig_rag_python_version: "3.9"
+stig_rag_venv_dir: "{{ stig_rag_home }}/venv"
+
+# Vector Store Configuration
+stig_rag_embedding_model: "all-MiniLM-L6-v2"
+stig_rag_chunk_size: 1000
+stig_rag_chunk_overlap: 200
+
+# Language Model Configuration
+stig_rag_llm_provider: "huggingface"
+stig_rag_llm_model: "microsoft/DialoGPT-medium"
+stig_rag_llm_temperature: 0.1
+stig_rag_llm_max_length: 2048
+
+# OpenAI Configuration (optional)
+# stig_rag_openai_api_key: "{{ vault_openai_api_key }}"
+# stig_rag_openai_model: "gpt-3.5-turbo"
+
+# Anthropic Configuration (optional)
+# stig_rag_anthropic_api_key: "{{ vault_anthropic_api_key }}"
+# stig_rag_anthropic_model: "claude-3-sonnet-20240229"
+
+# Search Configuration
+stig_rag_default_search_results: 5
+stig_rag_max_search_results: 20
+stig_rag_prefer_rhel9_results: true
+
+# Performance Settings
+stig_rag_enable_caching: true
+stig_rag_cache_ttl_seconds: 3600
+stig_rag_max_file_size_mb: 50
+
+# Security Settings
+stig_rag_allowed_file_extensions: [".xml", ".json", ".txt"]
+stig_rag_enable_cors: true
+stig_rag_allowed_origins: "*"
+
+# Logging Configuration
+stig_rag_log_level: "INFO"
+stig_rag_log_rotation: true
+stig_rag_log_max_size: "100MB"
+stig_rag_log_backup_count: 5
+
+# STIG Data Management
+stig_rag_load_sample_data: true
+stig_rag_download_official_stigs: false
+stig_rag_auto_update_stigs: false
+stig_rag_stig_update_schedule: "0 2 * * 0"  # Weekly on Sunday at 2 AM
+
+# Firewall Configuration
+stig_rag_configure_firewall: true
+stig_rag_firewall_zones: ["public"]
+
+# Reverse Proxy Configuration
+stig_rag_setup_proxy: false
+stig_rag_proxy_server: "nginx"
+stig_rag_ssl_enabled: false
+stig_rag_ssl_cert_path: "/etc/ssl/certs/stig-rag.crt"
+stig_rag_ssl_key_path: "/etc/ssl/private/stig-rag.key"
+
+# Monitoring Configuration
+stig_rag_setup_monitoring: true
+stig_rag_prometheus_enabled: false
+stig_rag_grafana_enabled: false
+
+# Backup Configuration
+stig_rag_backup_enabled: true
+stig_rag_backup_dir: "/var/backups/stig-rag"
+stig_rag_backup_retention_days: 30
+stig_rag_backup_schedule: "0 1 * * *"  # Daily at 1 AM
+
+# Development Settings
+stig_rag_dev_mode: false
+stig_rag_debug_enabled: false
+
+# Package versions (can be overridden)
+stig_rag_packages:
+  langchain: ">=0.0.350"
+  chromadb: ">=0.4.15"
+  sentence-transformers: ">=2.2.2"
+  transformers: ">=4.35.0"
+  torch: ">=2.0.0"
+  fastapi: ">=0.104.0"
+  uvicorn: ">=0.24.0"

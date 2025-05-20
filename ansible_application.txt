@@ -1,0 +1,90 @@
+---
+# Deploy the STIG RAG application
+
+- name: Clone STIG RAG repository
+  git:
+    repo: "{{ stig_rag_repo_url }}"
+    dest: "{{ stig_rag_home }}/app"
+    version: "{{ stig_rag_branch }}"
+    force: yes
+  become_user: "{{ stig_rag_user }}"
+  notify: restart stig-rag service
+
+- name: Create Python virtual environment
+  pip:
+    requirements: "{{ stig_rag_home }}/app/requirements.txt"
+    virtualenv: "{{ stig_rag_venv_dir }}"
+    virtualenv_python: python3
+  become_user: "{{ stig_rag_user }}"
+
+- name: Install additional Python packages
+  pip:
+    name:
+      - gunicorn
+      - prometheus-client
+    virtualenv: "{{ stig_rag_venv_dir }}"
+  become_user: "{{ stig_rag_user }}"
+
+- name: Create application configuration
+  template:
+    src: stig_rag_config.env.j2
+    dest: "{{ stig_rag_config_dir }}/config.env"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0640'
+  notify: restart stig-rag service
+
+- name: Create application startup script
+  template:
+    src: stig_rag_start.sh.j2
+    dest: "{{ stig_rag_home }}/bin/start.sh"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0755'
+
+- name: Create application health check script
+  template:
+    src: stig_rag_health.sh.j2
+    dest: "{{ stig_rag_home }}/bin/health_check.sh"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0755'
+
+- name: Create backup script
+  template:
+    src: backup_stig_rag.sh.j2
+    dest: "{{ stig_rag_home }}/bin/backup.sh"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0755'
+  when: stig_rag_backup_enabled
+
+- name: Create logrotate configuration
+  template:
+    src: stig_rag_logrotate.j2
+    dest: /etc/logrotate.d/stig-rag
+    owner: root
+    group: root
+    mode: '0644'
+  when: stig_rag_log_rotation
+
+- name: Configure firewall for STIG RAG
+  firewalld:
+    port: "{{ stig_rag_port }}/tcp"
+    permanent: yes
+    state: enabled
+    zone: "{{ item }}"
+  with_items: "{{ stig_rag_firewall_zones }}"
+  when: 
+    - stig_rag_configure_firewall
+    - ansible_os_family == "RedHat"
+  notify: reload firewalld
+
+- name: Configure UFW firewall (Ubuntu/Debian)
+  ufw:
+    rule: allow
+    port: "{{ stig_rag_port }}"
+    proto: tcp
+  when:
+    - stig_rag_configure_firewall
+    - ansible_os_family == "Debian"

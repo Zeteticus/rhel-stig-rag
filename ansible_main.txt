@@ -1,0 +1,78 @@
+---
+# RHEL STIG RAG System - Main Ansible Playbook
+# Supports RHEL 8, RHEL 9, CentOS, Ubuntu, and other distributions
+
+- name: Deploy RHEL STIG RAG System
+  hosts: stig_rag_servers
+  become: yes
+  vars_files:
+    - vars/main.yml
+    - vars/secrets.yml  # Optional: for API keys
+  
+  pre_tasks:
+    - name: Gather OS facts
+      ansible.builtin.setup:
+        gather_subset:
+          - "!all"
+          - "!facter"
+          - "os_family"
+          - "distribution"
+          - "distribution_major_version"
+    
+    - name: Set Python executable
+      set_fact:
+        python_executable: "{{ ansible_python_interpreter | default('python3') }}"
+
+  tasks:
+    - name: Install system dependencies
+      include_tasks: tasks/dependencies.yml
+      tags: [dependencies, setup]
+
+    - name: Create STIG RAG user
+      include_tasks: tasks/user.yml
+      tags: [user, setup]
+
+    - name: Deploy application
+      include_tasks: tasks/application.yml
+      tags: [application, deploy]
+
+    - name: Configure service
+      include_tasks: tasks/service.yml
+      tags: [service, config]
+
+    - name: Download and load STIG data
+      include_tasks: tasks/stig_data.yml
+      tags: [stig, data]
+      when: stig_rag_load_sample_data or stig_rag_download_official_stigs
+
+    - name: Setup monitoring and logging
+      include_tasks: tasks/monitoring.yml
+      tags: [monitoring, logging]
+
+    - name: Run health checks
+      include_tasks: tasks/health_check.yml
+      tags: [health, verify]
+
+  handlers:
+    - name: Restart stig-rag service
+      systemd:
+        name: stig-rag
+        state: restarted
+        daemon_reload: yes
+      when: ansible_service_mgr == 'systemd'
+
+    - name: Reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
+      when: stig_rag_setup_proxy and ansible_service_mgr == 'systemd'
+
+  post_tasks:
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "RHEL STIG RAG System deployed successfully!"
+          - "Service URL: http://{{ ansible_fqdn }}:{{ stig_rag_port }}"
+          - "API Documentation: http://{{ ansible_fqdn }}:{{ stig_rag_port }}/docs"
+          - "Health Check: curl http://{{ ansible_fqdn }}:{{ stig_rag_port }}/health"
+          - "Log files: {{ stig_rag_log_dir }}/stig_rag.log"

@@ -1,0 +1,235 @@
+#!/bin/bash
+# STIG RAG Management Script for Podman Deployment
+
+set -e
+
+# Configuration
+PODMAN_MODE="{{ stig_rag_podman_mode }}"
+POD_NAME="{{ stig_rag_podman_pod_name }}"
+CONTAINER_NAME="{{ stig_rag_podman_container_name }}"
+SERVICE_NAME="{{ stig_rag_podman_pod_name }}.service"
+HOST_PORT="{{ stig_rag_podman_host_port }}"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+print_status() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+usage() {
+    echo "STIG RAG Podman Management Script"
+    echo "Usage: $0 [COMMAND]"
+    echo ""
+    echo "Commands:"
+    echo "  start       Start the STIG RAG services"
+    echo "  stop        Stop the STIG RAG services"
+    echo "  restart     Restart the STIG RAG services"
+    echo "  status      Show status of services and containers"
+    echo "  logs        Show container logs"
+    echo "  health      Check application health"
+    echo "  backup      Run backup manually"
+    echo "  update      Update containers with latest image"
+    echo "  shell       Open shell in container"
+    echo "  cleanup     Clean up stopped containers"
+    echo "  help        Show this help message"
+}
+
+get_systemctl_cmd() {
+    if [[ "$PODMAN_MODE" == "rootless" ]]; then
+        echo "systemctl --user"
+    else
+        echo "sudo systemctl"
+    fi
+}
+
+get_podman_cmd() {
+    if [[ "$PODMAN_MODE" == "rootful" ]]; then
+        echo "sudo podman"
+    else
+        echo "podman"
+    fi
+}
+
+start_services() {
+    print_status "Starting STIG RAG services..."
+    local systemctl_cmd=$(get_systemctl_cmd)
+    
+    $systemctl_cmd start "$SERVICE_NAME"
+    print_status "Services started successfully"
+}
+
+stop_services() {
+    print_status "Stopping STIG RAG services..."
+    local systemctl_cmd=$(get_systemctl_cmd)
+    
+    $systemctl_cmd stop "$SERVICE_NAME"
+    print_status "Services stopped successfully"
+}
+
+restart_services() {
+    print_status "Restarting STIG RAG services..."
+    local systemctl_cmd=$(get_systemctl_cmd)
+    
+    $systemctl_cmd restart "$SERVICE_NAME"
+    print_status "Services restarted successfully"
+}
+
+show_status() {
+    local systemctl_cmd=$(get_systemctl_cmd)
+    local podman_cmd=$(get_podman_cmd)
+    
+    echo "=== Systemd Service Status ==="
+    $systemctl_cmd status "$SERVICE_NAME" --no-pager
+    echo
+    
+    echo "=== Pod Status ==="
+    $podman_cmd pod ps --filter name="$POD_NAME"
+    echo
+    
+    echo "=== Container Status ==="
+    $podman_cmd ps --filter name="$CONTAINER_NAME"
+    echo
+    
+    echo "=== Health Check ==="
+    if curl -sf "http://localhost:$HOST_PORT/health" >/dev/null 2>&1; then
+        print_status "Application is healthy"
+    else
+        print_warning "Application is not responding"
+    fi
+}
+
+show_logs() {
+    local podman_cmd=$(get_podman_cmd)
+    local follow_flag=""
+    
+    if [[ "$1" == "-f" ]]; then
+        follow_flag="-f"
+    fi
+    
+    print_status "Showing container logs..."
+    $podman_cmd logs $follow_flag "$CONTAINER_NAME"
+}
+
+check_health() {
+    print_status "Checking application health..."
+    
+    local health_response=$(curl -s "http://localhost:$HOST_PORT/health" 2>/dev/null || echo "ERROR")
+    
+    if [[ "$health_response" == "ERROR" ]]; then
+        print_error "Health check failed - service not responding"
+        return 1
+    fi
+    
+    echo "Health Response: $health_response"
+    
+    # Test query endpoint
+    local query_response=$(curl -s -X POST "http://localhost:$HOST_PORT/query" \
+                          -H "Content-Type: application/json" \
+                          -d '{"question": "Test query", "rhel_version": "9"}' 2>/dev/null || echo "ERROR")
+    
+    if [[ "$query_response" != "ERROR" ]]; then
+        print_status "Query endpoint is working"
+    else
+        print_warning "Query endpoint is not responding"
+    fi
+}
+
+run_backup() {
+    local systemctl_cmd=$(get_systemctl_cmd)
+    
+    print_status "Running manual backup..."
+    $systemctl_cmd start stig-rag-backup.service
+    
+    # Wait for backup to complete
+    sleep 5
+    $systemctl_cmd status stig-rag-backup.service --no-pager
+}
+
+update_containers() {
+    local podman_cmd=$(get_podman_cmd)
+    
+    print_status "Updating containers with latest image..."
+    
+    # Pull latest image
+    $podman_cmd pull "{{ stig_rag_podman_image_name }}"
+    
+    # Restart services to use new image
+    restart_services
+    
+    # Wait for health check
+    sleep 10
+    check_health
+    
+    print_status "Update completed successfully"
+}
+
+open_shell() {
+    local podman_cmd=$(get_podman_cmd)
+    
+    print_status "Opening shell in container..."
+    $podman_cmd exec -it "$CONTAINER_NAME" /bin/bash
+}
+
+cleanup_containers() {
+    local podman_cmd=$(get_podman_cmd)
+    
+    print_status "Cleaning up stopped containers..."
+    $podman_cmd container prune -f
+    $podman_cmd image prune -f
+    print_status "Cleanup completed"
+}
+
+# Main execution
+case "${1:-}" in
+    start)
+        start_services
+        ;;
+    stop)
+        stop_services
+        ;;
+    restart)
+        restart_services
+        ;;
+    status)
+        show_status
+        ;;
+    logs)
+        show_logs "$2"
+        ;;
+    health)
+        check_health
+        ;;
+    backup)
+        run_backup
+        ;;
+    update)
+        update_containers
+        ;;
+    shell)
+        open_shell
+        ;;
+    cleanup)
+        cleanup_containers
+        ;;
+    help|"")
+        usage
+        ;;
+    *)
+        print_error "Unknown command: $1"
+        usage
+        exit 1
+        ;;
+esac

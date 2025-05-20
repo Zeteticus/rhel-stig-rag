@@ -1,0 +1,139 @@
+---
+# Setup systemd integration for Podman containers
+
+- name: Set systemd directory based on mode
+  set_fact:
+    systemd_dir: "{{ ansible_user_dir }}/.config/systemd/user" if stig_rag_podman_mode == 'rootless' else '/etc/systemd/system'
+    systemd_scope: "{{ 'user' if stig_rag_podman_mode == 'rootless' else 'system' }}"
+
+- name: Create systemd directory
+  file:
+    path: "{{ systemd_dir }}"
+    state: directory
+    mode: '0755'
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+
+# Traditional systemd service files
+- name: Create systemd service for pod
+  template:
+    src: podman-pod.service.j2
+    dest: "{{ systemd_dir }}/{{ stig_rag_podman_pod_name }}.service"
+    mode: '0644'
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: not stig_rag_podman_quadlet_enabled
+  notify: reload systemd
+
+- name: Create systemd service for container
+  template:
+    src: podman-container.service.j2
+    dest: "{{ systemd_dir }}/{{ stig_rag_podman_container_name }}.service"
+    mode: '0644'
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: not stig_rag_podman_quadlet_enabled
+  notify: reload systemd
+
+# Quadlet integration (for newer systemd versions)
+- name: Create quadlet directory
+  file:
+    path: "{{ stig_rag_podman_quadlet_dir }}"
+    state: directory
+    mode: '0755'
+  when: stig_rag_podman_quadlet_enabled
+
+- name: Create quadlet pod file
+  template:
+    src: stig-rag-pod.pod.j2
+    dest: "{{ stig_rag_podman_quadlet_dir }}/{{ stig_rag_podman_pod_name }}.pod"
+    mode: '0644'
+  when: stig_rag_podman_quadlet_enabled
+  notify: reload systemd
+
+- name: Create quadlet container file
+  template:
+    src: stig-rag.container.j2
+    dest: "{{ stig_rag_podman_quadlet_dir }}/{{ stig_rag_podman_container_name }}.container"
+    mode: '0644'
+  when: stig_rag_podman_quadlet_enabled
+  notify: reload systemd
+
+# Timer for automatic backups
+- name: Create backup timer service
+  template:
+    src: podman-backup.timer.j2
+    dest: "{{ systemd_dir }}/stig-rag-backup.timer"
+    mode: '0644'
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: stig_rag_podman_backup_enabled
+  notify: reload systemd
+
+- name: Create backup service
+  template:
+    src: podman-backup.service.j2
+    dest: "{{ systemd_dir }}/stig-rag-backup.service"
+    mode: '0644'
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: stig_rag_podman_backup_enabled
+  notify: reload systemd
+
+# Auto-update timer (if enabled)
+- name: Create auto-update timer
+  template:
+    src: podman-auto-update.timer.j2
+    dest: "{{ systemd_dir }}/podman-auto-update.timer"
+    mode: '0644'
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: stig_rag_podman_auto_update
+  notify: reload systemd
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+    scope: "{{ systemd_scope }}"
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+
+- name: Enable pod service
+  systemd:
+    name: "{{ stig_rag_podman_pod_name }}"
+    enabled: yes
+    scope: "{{ systemd_scope }}"
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: not stig_rag_podman_quadlet_enabled
+
+- name: Enable container service
+  systemd:
+    name: "{{ stig_rag_podman_container_name }}"
+    enabled: yes
+    scope: "{{ systemd_scope }}"
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: not stig_rag_podman_quadlet_enabled
+
+- name: Enable backup timer
+  systemd:
+    name: stig-rag-backup.timer
+    enabled: yes
+    state: started
+    scope: "{{ systemd_scope }}"
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: stig_rag_podman_backup_enabled
+
+- name: Enable auto-update timer
+  systemd:
+    name: podman-auto-update.timer
+    enabled: yes
+    state: started
+    scope: "{{ systemd_scope }}"
+  become: "{{ stig_rag_podman_mode == 'rootful' }}"
+  when: stig_rag_podman_auto_update
+
+# Generate user service for easy management
+- name: Create management script
+  template:
+    src: manage-stig-rag.sh.j2
+    dest: "{{ ansible_user_dir }}/bin/manage-stig-rag.sh"
+    mode: '0755'
+
+- name: Add management script to PATH
+  lineinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    line: 'export PATH="$HOME/bin:$PATH"'
+    create: yes

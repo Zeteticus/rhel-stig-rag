@@ -1,0 +1,51 @@
+---
+# Create user and group for STIG RAG service
+
+- name: Create STIG RAG group
+  group:
+    name: "{{ stig_rag_group }}"
+    state: present
+
+- name: Create STIG RAG user
+  user:
+    name: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    home: "{{ stig_rag_home }}"
+    shell: /bin/bash
+    system: yes
+    createhome: yes
+    state: present
+
+- name: Create STIG RAG directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0755'
+  with_items:
+    - "{{ stig_rag_home }}"
+    - "{{ stig_rag_data_dir }}"
+    - "{{ stig_rag_vector_db_dir }}"
+    - "{{ stig_rag_log_dir }}"
+    - "{{ stig_rag_config_dir }}"
+    - "{{ stig_rag_home }}/bin"
+    - "{{ stig_rag_home }}/tmp"
+
+- name: Create backup directory
+  file:
+    path: "{{ stig_rag_backup_dir }}"
+    state: directory
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0750'
+  when: stig_rag_backup_enabled
+
+- name: Set sudo permissions for STIG RAG user (if needed)
+  lineinfile:
+    path: /etc/sudoers.d/stig-rag
+    line: "{{ stig_rag_user }} ALL=(ALL) NOPASSWD: /bin/systemctl restart stig-rag, /bin/systemctl status stig-rag"
+    create: yes
+    validate: 'visudo -cf %s'
+    mode: '0440'
+  when: stig_rag_sudo_access | default(false)

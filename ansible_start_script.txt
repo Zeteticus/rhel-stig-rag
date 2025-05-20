@@ -1,0 +1,31 @@
+#!/bin/bash
+# STIG RAG startup script
+
+set -e
+
+# Source environment
+source {{ stig_rag_config_dir }}/config.env
+
+# Activate virtual environment
+source {{ stig_rag_venv_dir }}/bin/activate
+
+# Change to application directory
+cd {{ stig_rag_home }}/app
+
+# Start the application
+{% if stig_rag_dev_mode %}
+# Development mode with auto-reload
+uvicorn rhel_stig_rag:app --reload --host ${APP_HOST} --port ${APP_PORT} \
+  --log-level {{ stig_rag_log_level | lower }} \
+  --access-log --access-logfile {{ stig_rag_log_dir }}/access.log
+{% else %}
+# Production mode
+gunicorn rhel_stig_rag:app -w {{ stig_rag_workers }} \
+  --bind ${APP_HOST}:${APP_PORT} \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --log-level {{ stig_rag_log_level | lower }} \
+  --access-logfile {{ stig_rag_log_dir }}/access.log \
+  --error-logfile {{ stig_rag_log_dir }}/error.log \
+  --capture-output \
+  --enable-stdio-inheritance
+{% endif %}

@@ -1,0 +1,143 @@
+---
+# Download and load STIG data
+
+- name: Create STIG data directory
+  file:
+    path: "{{ stig_rag_data_dir }}"
+    state: directory
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0755'
+
+- name: Create sample STIG data (RHEL 9 priority)
+  template:
+    src: sample_rhel9_stig.json.j2
+    dest: "{{ stig_rag_data_dir }}/sample_rhel9_stig.json"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0644'
+  when: stig_rag_load_sample_data
+
+- name: Create sample STIG data (RHEL 8 secondary)
+  template:
+    src: sample_rhel8_stig.json.j2
+    dest: "{{ stig_rag_data_dir }}/sample_rhel8_stig.json"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0644'
+  when: stig_rag_load_sample_data
+
+- name: Download official RHEL 9 STIG
+  get_url:
+    url: "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_RHEL_9_STIG_V1R3_Manual-xccdf.xml.zip"
+    dest: "{{ stig_rag_data_dir }}/rhel9_stig.zip"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0644'
+    timeout: 300
+  when: stig_rag_download_official_stigs
+  register: rhel9_stig_download
+
+- name: Download official RHEL 8 STIG
+  get_url:
+    url: "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_RHEL_8_STIG_V1R12_Manual-xccdf.xml.zip"
+    dest: "{{ stig_rag_data_dir }}/rhel8_stig.zip"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    mode: '0644'
+    timeout: 300
+  when: stig_rag_download_official_stigs
+  register: rhel8_stig_download
+
+- name: Extract RHEL 9 STIG
+  unarchive:
+    src: "{{ stig_rag_data_dir }}/rhel9_stig.zip"
+    dest: "{{ stig_rag_data_dir }}"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    remote_src: yes
+    creates: "{{ stig_rag_data_dir }}/U_RHEL_9_STIG_V1R3_Manual-xccdf.xml"
+  when: 
+    - stig_rag_download_official_stigs
+    - rhel9_stig_download.changed
+
+- name: Extract RHEL 8 STIG
+  unarchive:
+    src: "{{ stig_rag_data_dir }}/rhel8_stig.zip"
+    dest: "{{ stig_rag_data_dir }}"
+    owner: "{{ stig_rag_user }}"
+    group: "{{ stig_rag_group }}"
+    remote_src: yes
+    creates: "{{ stig_rag_data_dir }}/U_RHEL_8_STIG_V1R12_Manual-xccdf.xml"
+  when: 
+    - stig_rag_download_official_stigs
+    - rhel8_stig_download.changed
+
+- name: Wait for STIG RAG service to be ready
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/health"
+    method: GET
+  register: health_check
+  until: health_check.status == 200
+  retries: 30
+  delay: 5
+
+- name: Load sample RHEL 9 STIG data
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/load-stig"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      file_path: "{{ stig_rag_data_dir }}/sample_rhel9_stig.json"
+  when: stig_rag_load_sample_data
+  register: load_rhel9_result
+  retries: 3
+  delay: 10
+
+- name: Load sample RHEL 8 STIG data
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/load-stig"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      file_path: "{{ stig_rag_data_dir }}/sample_rhel8_stig.json"
+  when: stig_rag_load_sample_data
+  register: load_rhel8_result
+  retries: 3
+  delay: 10
+
+- name: Load official RHEL 9 STIG
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/load-stig"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      file_path: "{{ stig_rag_data_dir }}/U_RHEL_9_STIG_V1R3_Manual-xccdf.xml"
+  when: 
+    - stig_rag_download_official_stigs
+    - rhel9_stig_download.changed
+  register: load_official_rhel9_result
+  retries: 3
+  delay: 10
+
+- name: Load official RHEL 8 STIG
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/load-stig"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      file_path: "{{ stig_rag_data_dir }}/U_RHEL_8_STIG_V1R12_Manual-xccdf.xml"
+  when: 
+    - stig_rag_download_official_stigs
+    - rhel8_stig_download.changed
+  register: load_official_rhel8_result
+  retries: 3
+  delay: 10
+
+- name: Display STIG loading results
+  debug:
+    msg:
+      - "RHEL 9 Sample Data: {{ load_rhel9_result.json.message | default('Not loaded') }}"
+      - "RHEL 8 Sample Data: {{ load_rhel8_result.json.message | default('Not loaded') }}"
+      - "RHEL 9 Official STIG: {{ load_official_rhel9_result.json.message | default('Not loaded') }}"
+      - "RHEL 8 Official STIG: {{ load_official_rhel8_result.json.message | default('Not loaded') }}"

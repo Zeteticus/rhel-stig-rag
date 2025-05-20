@@ -1,0 +1,58 @@
+# RHEL STIG RAG System Configuration
+# Primary Focus: RHEL 9, Secondary: RHEL 8
+
+# Application Settings
+APP_NAME=RHEL STIG RAG Assistant
+APP_VERSION=1.0.0
+APP_HOST=0.0.0.0
+APP_PORT=8000
+
+# RHEL Version Priority
+DEFAULT_RHEL_VERSION=9
+SUPPORTED_RHEL_VERSIONS=8,9
+
+# Vector Store Settings
+VECTORSTORE_PATH=./stig_chroma_db
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=200
+
+# Language Model Settings
+# Options: huggingface, openai, anthropic
+LLM_PROVIDER=huggingface
+LLM_MODEL=microsoft/DialoGPT-medium
+LLM_TEMPERATURE=0.1
+LLM_MAX_LENGTH=2048
+
+# If using OpenAI
+# OPENAI_API_KEY=your_openai_api_key_here
+# OPENAI_MODEL=gpt-3.5-turbo
+
+# If using Anthropic
+# ANTHROPIC_API_KEY=your_anthropic_api_key_here  
+# ANTHROPIC_MODEL=claude-3-sonnet-20240229
+
+# Data Directories
+STIG_DATA_DIR=./stig_data
+LOG_DIR=./logs
+
+# Search Settings
+DEFAULT_SEARCH_RESULTS=5
+MAX_SEARCH_RESULTS=20
+PREFER_RHEL9_RESULTS=true
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE=./logs/stig_rag.log
+
+# Security Settings
+ALLOWED_FILE_EXTENSIONS=.xml,.json,.txt
+MAX_FILE_SIZE_MB=50
+
+# Performance Settings
+ENABLE_CACHING=true
+CACHE_TTL_SECONDS=3600
+
+# UI Settings  
+ENABLE_CORS=true
+ALLOWED_ORIGINS=*

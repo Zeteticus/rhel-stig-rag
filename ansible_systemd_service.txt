@@ -1,0 +1,37 @@
+[Unit]
+Description=RHEL STIG RAG System
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User={{ stig_rag_user }}
+Group={{ stig_rag_group }}
+WorkingDirectory={{ stig_rag_home }}/app
+Environment=PATH={{ stig_rag_venv_dir }}/bin
+EnvironmentFile={{ stig_rag_config_dir }}/config.env
+ExecStart={{ stig_rag_venv_dir }}/bin/python3 rhel_stig_rag.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=append:{{ stig_rag_log_dir }}/stig_rag.log
+StandardError=append:{{ stig_rag_log_dir }}/stig_rag_error.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ stig_rag_home }} {{ stig_rag_log_dir }} {{ stig_rag_vector_db_dir }}
+
+# Resource limits
+LimitNOFILE=65536
+{% if stig_rag_memory_limit_mb is defined %}
+MemoryLimit={{ stig_rag_memory_limit_mb }}M
+{% endif %}
+{% if stig_rag_cpu_limit_percent is defined %}
+CPUQuota={{ stig_rag_cpu_limit_percent }}%
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

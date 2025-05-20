@@ -1,0 +1,167 @@
+---
+# Additional playbook for updating STIG data
+
+- name: Update STIG Data
+  hosts: stig_rag_servers
+  become: yes
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Create temporary download directory
+      file:
+        path: /tmp/stig_update
+        state: directory
+        owner: "{{ stig_rag_user }}"
+        group: "{{ stig_rag_group }}"
+        mode: '0755'
+
+    - name: Get current STIG versions
+      find:
+        paths: "{{ stig_rag_data_dir }}"
+        patterns: "*STIG*.xml"
+      register: current_stigs
+
+    - name: Download latest RHEL 9 STIG
+      get_url:
+        url: "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_RHEL_9_STIG_V1R3_Manual-xccdf.xml.zip"
+        dest: "/tmp/stig_update/rhel9_stig.zip"
+        force: yes
+        timeout: 300
+      register: rhel9_download
+
+    - name: Download latest RHEL 8 STIG
+      get_url:
+        url: "https://dl.dod.cyber.mil/wp-content/uploads/stigs/zip/U_RHEL_8_STIG_V1R12_Manual-xccdf.xml.zip"
+        dest: "/tmp/stig_update/rhel8_stig.zip"
+        force: yes
+        timeout: 300
+      register: rhel8_download
+
+    - name: Extract RHEL 9 STIG
+      unarchive:
+        src: "/tmp/stig_update/rhel9_stig.zip"
+        dest: "/tmp/stig_update"
+        remote_src: yes
+      when: rhel9_download.changed
+
+    - name: Extract RHEL 8 STIG
+      unarchive:
+        src: "/tmp/stig_update/rhel8_stig.zip"
+        dest: "/tmp/stig_update"
+        remote_src: yes
+      when: rhel8_download.changed
+
+    - name: Backup current STIG data
+      command: >
+        cp -r {{ stig_rag_data_dir }} 
+        {{ stig_rag_backup_dir }}/stig_data_backup_{{ ansible_date_time.epoch }}
+      when: current_stigs.files | length > 0
+
+    - name: Copy new STIG files
+      copy:
+        src: "/tmp/stig_update/{{ item }}"
+        dest: "{{ stig_rag_data_dir }}/"
+        owner: "{{ stig_rag_user }}"
+        group: "{{ stig_rag_group }}"
+        mode: '0644'
+        remote_src: yes
+      with_fileglob:
+        - "/tmp/stig_update/*.xml"
+      register: stig_copy
+
+    - name: Wait for STIG RAG service
+      wait_for:
+        host: "{{ stig_rag_host }}"
+        port: "{{ stig_rag_port }}"
+        timeout: 60
+
+    - name: Clear vector database for reload
+      file:
+        path: "{{ stig_rag_vector_db_dir }}"
+        state: absent
+      when: stig_copy.changed
+
+    - name: Recreate vector database directory
+      file:
+        path: "{{ stig_rag_vector_db_dir }}"
+        state: directory
+        owner: "{{ stig_rag_user }}"
+        group: "{{ stig_rag_group }}"
+        mode: '0755'
+      when: stig_copy.changed
+
+    - name: Restart STIG RAG service to reload data
+      systemd:
+        name: stig-rag
+        state: restarted
+      when: stig_copy.changed
+
+    - name: Wait for service to be ready
+      uri:
+        url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/health"
+        method: GET
+      register: health_check
+      until: health_check.status == 200
+      retries: 30
+      delay: 5
+
+    - name: Load updated RHEL 9 STIG
+      uri:
+        url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/load-stig"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          file_path: "{{ stig_rag_data_dir }}/U_RHEL_9_STIG_V1R3_Manual-xccdf.xml"
+      when: rhel9_download.changed
+      retries: 3
+      delay: 10
+
+    - name: Load updated RHEL 8 STIG
+      uri:
+        url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/load-stig"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          file_path: "{{ stig_rag_data_dir }}/U_RHEL_8_STIG_V1R12_Manual-xccdf.xml"
+      when: rhel8_download.changed
+      retries: 3
+      delay: 10
+
+    - name: Test updated system
+      uri:
+        url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/query"
+        method: POST
+        body_format: json
+        body:
+          question: "Test query after STIG update"
+          rhel_version: "9"
+      register: test_query
+
+    - name: Verify update success
+      assert:
+        that:
+          - test_query.status == 200
+          - test_query.json.answer is defined
+        fail_msg: "STIG update verification failed"
+        success_msg: "STIG update completed successfully"
+
+    - name: Clean up temporary files
+      file:
+        path: /tmp/stig_update
+        state: absent
+
+    - name: Log update completion
+      lineinfile:
+        path: "{{ stig_rag_log_dir }}/update.log"
+        line: "{{ ansible_date_time.iso8601 }} - STIG update completed successfully"
+        create: yes
+        owner: "{{ stig_rag_user }}"
+        group: "{{ stig_rag_group }}"
+
+  handlers:
+    - name: restart stig-rag service
+      systemd:
+        name: stig-rag
+        state: restarted
+        daemon_reload: yes

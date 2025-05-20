@@ -1,0 +1,135 @@
+---
+# Health checks and verification
+
+- name: Check STIG RAG service status
+  systemd:
+    name: stig-rag
+  register: service_status
+
+- name: Verify service is running
+  assert:
+    that:
+      - service_status.status.ActiveState == "active"
+      - service_status.status.SubState == "running"
+    fail_msg: "STIG RAG service is not running properly"
+    success_msg: "STIG RAG service is running successfully"
+
+- name: Check application health endpoint
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/health"
+    method: GET
+    return_content: yes
+  register: health_response
+  retries: 5
+  delay: 10
+
+- name: Verify health check response
+  assert:
+    that:
+      - health_response.status == 200
+      - health_response.json.status == "healthy"
+    fail_msg: "Health check failed: {{ health_response.content }}"
+    success_msg: "Health check passed successfully"
+
+- name: Test basic query functionality
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/query"
+    method: POST
+    body_format: json
+    body:
+      question: "How do I verify GPG signatures in RHEL?"
+      rhel_version: "9"
+    return_content: yes
+  register: query_response
+  when: stig_rag_load_sample_data
+
+- name: Verify query response
+  assert:
+    that:
+      - query_response.status == 200
+      - query_response.json.answer is defined
+      - query_response.json.rhel_version_focus == "9"
+    fail_msg: "Query test failed: {{ query_response.content }}"
+    success_msg: "Query test passed successfully"
+  when: stig_rag_load_sample_data
+
+- name: Test search functionality
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/search/RHEL-09-211010"
+    method: GET
+    return_content: yes
+  register: search_response
+  when: stig_rag_load_sample_data
+
+- name: Verify search response
+  assert:
+    that:
+      - search_response.status == 200
+      - search_response.json.results is defined
+    fail_msg: "Search test failed: {{ search_response.content }}"
+    success_msg: "Search test passed successfully"
+  when: stig_rag_load_sample_data
+
+- name: Check log files exist and are readable
+  stat:
+    path: "{{ stig_rag_log_dir }}/stig_rag.log"
+  register: log_file_stat
+
+- name: Verify log file
+  assert:
+    that:
+      - log_file_stat.stat.exists
+      - log_file_stat.stat.readable
+    fail_msg: "Log file is not accessible"
+    success_msg: "Log file is accessible"
+
+- name: Check disk space usage
+  shell: df -h {{ stig_rag_home }} | awk 'NR==2 {print $5}' | sed 's/%//'
+  register: disk_usage
+  changed_when: false
+
+- name: Warning if disk space is low
+  debug:
+    msg: "Warning: Disk usage is {{ disk_usage.stdout }}%. Consider cleaning up or expanding storage."
+  when: disk_usage.stdout | int > 80
+
+- name: Check memory usage
+  shell: free -m | awk 'NR==2{printf "%.1f", $3*100/$2}'
+  register: memory_usage
+  changed_when: false
+
+- name: Warning if memory usage is high
+  debug:
+    msg: "Warning: Memory usage is {{ memory_usage.stdout }}%. Consider adding more RAM or optimizing configuration."
+  when: memory_usage.stdout | float > 80.0
+
+- name: Check if vector database exists and has data
+  stat:
+    path: "{{ stig_rag_vector_db_dir }}"
+  register: vector_db_stat
+
+- name: Verify vector database
+  assert:
+    that:
+      - vector_db_stat.stat.exists
+      - vector_db_stat.stat.isdir
+    fail_msg: "Vector database directory does not exist"
+    success_msg: "Vector database directory exists"
+
+- name: Performance benchmark (optional)
+  uri:
+    url: "http://{{ stig_rag_host }}:{{ stig_rag_port }}/query"
+    method: POST
+    body_format: json
+    body:
+      question: "Test performance query"
+      rhel_version: "9"
+  register: perf_start_time
+  when: stig_rag_run_performance_test | default(false)
+
+- name: Check response time
+  debug:
+    msg: "Query response time: {{ (perf_start_time.elapsed * 1000) | round(2) }}ms"
+  when: 
+    - stig_rag_run_performance_test | default(false)
+    - perf_start_time.elapsed is defined

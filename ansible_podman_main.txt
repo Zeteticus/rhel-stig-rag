@@ -1,0 +1,67 @@
+---
+# Ansible playbook for Podman-based deployment
+
+- name: Deploy RHEL STIG RAG using Podman
+  hosts: stig_rag_servers
+  become: no  # Podman can run rootless
+  vars_files:
+    - vars/main.yml
+    - vars/podman.yml
+  
+  pre_tasks:
+    - name: Check if running as desired user
+      set_fact:
+        target_user: "{{ stig_rag_podman_user | default(ansible_user) }}"
+    
+    - name: Gather system facts
+      setup:
+        gather_subset:
+          - "!all"
+          - "!facter"
+          - "distribution"
+          - "os_family"
+
+  tasks:
+    - name: Install Podman and dependencies
+      include_tasks: tasks/podman_install.yml
+      tags: [install, podman]
+
+    - name: Setup Podman environment
+      include_tasks: tasks/podman_setup.yml
+      tags: [setup, podman]
+
+    - name: Build STIG RAG container image
+      include_tasks: tasks/podman_build.yml
+      tags: [build, image]
+
+    - name: Configure Podman deployment
+      include_tasks: tasks/podman_configure.yml
+      tags: [configure, podman]
+
+    - name: Deploy STIG RAG containers
+      include_tasks: tasks/podman_deploy.yml
+      tags: [deploy, containers]
+
+    - name: Setup systemd integration
+      include_tasks: tasks/podman_systemd.yml
+      tags: [systemd, service]
+
+    - name: Load STIG data
+      include_tasks: tasks/podman_data.yml
+      tags: [data, stig]
+      when: stig_rag_load_sample_data or stig_rag_download_official_stigs
+
+    - name: Verify deployment
+      include_tasks: tasks/podman_verify.yml
+      tags: [verify, health]
+
+  post_tasks:
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "RHEL STIG RAG deployed successfully with Podman!"
+          - "Deployment mode: {{ stig_rag_podman_mode }}"
+          - "Service URL: http://{{ ansible_fqdn }}:{{ stig_rag_podman_host_port }}"
+          - "Container status: podman pod ps --filter name={{ stig_rag_podman_pod_name }}"
+          - "Logs: podman logs {{ stig_rag_podman_container_name }}"
+          - "Health: curl http://{{ ansible_fqdn }}:{{ stig_rag_podman_host_port }}/health"

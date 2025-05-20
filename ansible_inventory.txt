@@ -1,0 +1,49 @@
+[all]
+# Example inventory for STIG RAG deployment
+
+# Single server deployment
+stig-rag-01 ansible_host=192.168.1.100 ansible_user=rhel
+
+# Multi-server deployment for high availability
+# stig-rag-02 ansible_host=192.168.1.101 ansible_user=rhel
+# stig-rag-03 ansible_host=192.168.1.102 ansible_user=rhel
+
+[stig_rag_servers]
+stig-rag-01
+
+# Load balancer (optional)
+# [load_balancers]
+# stig-lb-01 ansible_host=192.168.1.200 ansible_user=rhel
+
+# Development environment
+[development]
+stig-rag-dev ansible_host=192.168.1.50 ansible_user=developer
+
+# Production environment
+[production]
+stig-rag-prod ansible_host=10.0.1.100 ansible_user=rhel
+
+# Group variables
+[stig_rag_servers:vars]
+# Common variables for all STIG RAG servers
+stig_rag_configure_firewall=true
+stig_rag_setup_monitoring=true
+
+[development:vars]
+# Development-specific variables
+stig_rag_dev_mode=true
+stig_rag_debug_enabled=true
+stig_rag_log_level=DEBUG
+stig_rag_load_sample_data=true
+stig_rag_download_official_stigs=false
+
+[production:vars]
+# Production-specific variables
+stig_rag_dev_mode=false
+stig_rag_debug_enabled=false
+stig_rag_log_level=INFO
+stig_rag_load_sample_data=false
+stig_rag_download_official_stigs=true
+stig_rag_backup_enabled=true
+stig_rag_setup_proxy=true
+stig_rag_ssl_enabled=true
